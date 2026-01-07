@@ -24,13 +24,13 @@ global θmax=(pi/180)*[170, 120, 170, 120, 170, 120, 170];
 global ωmax=(pi/180)*[112.5, 112.5, 112.5, 112.5, 180, 112.5, 112.5];
 global Pb=[-0.3668, -0.0379, 0.5];
 global Ab=RTL2R(pi/12, pi/6, 0);
-global Kp=1;
-global K0=1;
+global Kp=1.0;
+global K0=1.0;
 global dP = [0.0, 0.0, -0.001];
 global dω = [0.0, 0.0, 0.0];
 global dt = 0.05;
 
-function inverseKinematicsPos(θi, Pf, rob, dP, dt)
+function inverseKinematicsPos(θi, Pf, rob, dP, dt, α=-1)
     q = θi;
     q_collect = Vector{Vector{Float64}}()
     push!(q_collect, copy(q))
@@ -46,8 +46,8 @@ function inverseKinematicsPos(θi, Pf, rob, dP, dt)
         dPe = Kp*ϵP .+ dP;
         # Change 3 to 6 to get orientation control as well
         J = Jacobian(q, rob, Pe)[1:3, :];
-        dq = LinearAlgebra.pinv(J) * (Kp*ϵP .+ dP)
-        #dq = eloignement_butees_articulaires(J, dPe, q, θmax, θmin, -0.5);
+        #dq = LinearAlgebra.pinv(J) * (Kp*ϵP .+ dP)
+        dq = eloignement_butees_articulaires(J, dPe, q, θmax, θmin, α);
 
         q = q + dq*dt;
         push!(q_collect, copy(q))
@@ -70,7 +70,7 @@ function inverseKinematicsPos(θi, Pf, rob, dP, dt)
     return q_collect
 end
 
-function inverseKinematics(θi, Pf, Af, rob, dP, dω, dt, λ_L=0.1)
+function inverseKinematics(θi, Pf, Af, rob, dP, dω, dt, α=-1, λ_L=0.1)
     q = θi;
     q_collect = Vector{Vector{Float64}}()
     epsilon0_collect = Vector{Vector{Float64}}()
@@ -101,8 +101,8 @@ function inverseKinematics(θi, Pf, Af, rob, dP, dω, dt, λ_L=0.1)
         # Change 3 to 6 to get orientation control as we ll
         J = Jacobian(q, rob, Pe)[1:6, :];
         Ẋ = [dPe; ωe];
-        dq = LinearAlgebra.pinv(J) * Ẋ;
-        #dq = eloignement_butees_articulaires(J, Ẋ, q, θmax, θmin, -0.5);
+        #dq = LinearAlgebra.pinv(J) * Ẋ;
+        dq = eloignement_butees_articulaires(J, Ẋ, q, θmax, θmin, α);
 
         q = q + dq*dt;
         push!(q_collect, copy(q))
@@ -173,17 +173,15 @@ Pa = Ta[1:3,4]
 print("Robot en position : ", Pa, "\n")
 sleep(2)
 
-#q_collect = inverseKinematicsPos(θinit, Pb, rob, dP, dt)
+#q_collect = inverseKinematicsPos(θinit, Pb, rob, dP, dt, -2)
 
-q_collect, epsilon0_collect = inverseKinematics(θinit, Pb, Ab, rob, dP, dω, dt)
+q_collect, epsilon0_collect = inverseKinematics(θinit, Pb, Ab, rob, dP, dω, dt, -2)
 
 stopsimulation(clientID,simx_opmode_oneshot) # Arrêt de la simulation
 
 
-#=
 # --- Afficher la trajectoire des articulations ---
-using Plots
-
+#=
 # Convertir q_collect (Vector de vecteurs) en matrice (N_iterations, 7_joints)
 q_matrix = hcat(q_collect...)  # crée matrice (7, N_iterations)
 
@@ -197,7 +195,7 @@ Plots.plot(iterations, q_matrix', label=["q1" "q2" "q3" "q4" "q5" "q6" "q7"],
      title="Trajectoire des articulations", legend=:topright)
 =#
 # --- Afficher la trajectoire de l'effecteur ---
-#=
+
 # Récupérer la position de l'effecteur pour chaque configuration
 trajectoire_effecteur = []
 for q in q_collect
@@ -220,8 +218,8 @@ Plots.plot(iterations_eff, [x_traj y_traj z_traj],
      label=["x" "y" "z"],
      xlabel="Itération", ylabel="Position (m)", 
      title="Trajectoire de l'effecteur selon les axes", legend=:topright)
-=#
 
+#=
 # --- Afficher la trajectoire de ϵ0 (erreur d'orientation) ---
 # Convertir epsilon0_collect (Vector de vecteurs) en matrice (3, N_iterations)
 epsilon0_matrix = hcat(epsilon0_collect...)
@@ -238,3 +236,4 @@ Plots.plot(iterations_eps, [epsilon0_x epsilon0_y epsilon0_z],
      label=["ϵ0_x" "ϵ0_y" "ϵ0_z"],
      xlabel="Itération", ylabel="ϵ0 (rad)", 
      title="Trajectoire du vecteur erreur d'orientation ϵ0", legend=:topright)
+=#
